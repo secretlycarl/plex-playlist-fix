@@ -1,0 +1,10 @@
+{
+  "plex_api": {
+    "base_url": "http://[your plex ip here]:32400",
+    "token": "[your plex api auth key here]"
+  },
+  "directories": {
+    "csv": "/app/csv",
+    "music": "/app/music"
+  }
+}

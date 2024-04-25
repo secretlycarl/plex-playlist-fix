@@ -1,0 +1,1 @@
+docker build -t plex-playlist-fix . ; docker run -it -v [path to folder with CSVs]:/app/csv -v [path to folder with mp3s]:/app/music --name playlist_fix plex-playlist-fix
