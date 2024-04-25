@@ -9,4 +9,8 @@ Usage
 
 Set up the config file with your information
 
+Set up the run command to mount your folders with CSVs and mp3s
+
+Build the docker image
+
 Run the docker run command
