@@ -14,3 +14,5 @@ Set up the run command to mount your folders with CSVs and mp3s
 Build the docker image
 
 Run the docker run command
+
+The script will read the CSVs and look for the songs in your mp3 library, ask to confirm the match, and then add it to the apporpriate plex playlist
