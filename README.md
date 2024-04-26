@@ -24,6 +24,7 @@ INFO:root:Retrying search for [song title]
 INFO:root:Search for [song title] successful
 [repeats for all songs]
 INFO:root:No new tracks were added to the playlist test1.
+Missing tracks for playlist test1:
 [List of song titles]
 PS C:\Users\user\Documents\plex-playlist-fix>
 
