@@ -9,8 +9,8 @@ class Track:
 @dataclass
 class Playlist:
   """Holds information about a Plex playlist."""
-  id: str  # This attribute might not be used depending on your implementation
-  name: str  # Use 'name' instead of 'title' for consistency with Plex
+  id: str
+  name: str
 
 @dataclass
 class UserInputs:
