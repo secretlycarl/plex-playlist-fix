@@ -19,25 +19,13 @@ def load_config():
         config_file_path = "/app/config.json"  # Full path to config.json within the container
         with open(config_file_path, "r") as config_file:
             config = json.load(config_file)
-        
-        # Extract the music directory path from the config
-        music_dir = config.get("directories", {}).get("music")
-        
-        if music_dir:
-            global MUSIC_DIR
-            MUSIC_DIR = music_dir.replace("\\", "/")  # Ensure consistent path format
-        
         return config
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Error loading config.json: {e}")
         exit(1)
 
 def prompt_plex_libraries(plex: PlexServer) -> None:
-    """Prompt user to select Plex library before proceeding.
-
-    Args:
-        plex (PlexServer): A configured PlexServer instance
-    """
+    """Prompt user to select Plex library before proceeding."""
     libraries = plex.library.sections()
     print("Available Plex Libraries:")
     for idx, library in enumerate(libraries, start=1):
@@ -56,15 +44,7 @@ def prompt_plex_libraries(plex: PlexServer) -> None:
         exit(0)
 
 def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> List:
-    """Search and return list of tracks available in Plex.
-
-    Args:
-        plex (PlexServer): A configured PlexServer instance
-        tracks (List[Track]): List of track objects
-
-    Returns:
-        List: of Plex track objects
-    """
+    """Search and return list of tracks available in Plex."""
     plex_tracks, missing_tracks = [], []
     for track in tracks:
         search = []
@@ -91,20 +71,11 @@ def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> List:
                     ).quick_ratio()
 
                     if artist_similarity >= 0.9:
-                        plex_tracks.extend(s)
+                        plex_tracks.append(s)
                         found = True
                         break
 
-                    album_similarity = SequenceMatcher(
-                        None, s.album().title.lower(), track.album.lower()
-                    ).quick_ratio()
-
-                    if album_similarity >= 0.9:
-                        plex_tracks.extend(s)
-                        found = True
-                        break
-
-                except IndexError:
+                except AttributeError:
                     logging.info(
                         "Looks like Plex mismatched the search for %s,"
                         " retrying with next result",
@@ -116,6 +87,7 @@ def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> List:
     return plex_tracks, missing_tracks
 
 def read_csv_files(csv_directory):
+    """Read CSV files from specified directory."""
     playlist_data = {}
     
     if not os.path.exists(csv_directory):
@@ -134,76 +106,33 @@ def read_csv_files(csv_directory):
     
     return playlist_data
 
-def search_local_music(search_term):
-    matched_files = []
-    for root, dirs, files in os.walk(MUSIC_DIR):
-        for file in files:
-            file_name = os.path.splitext(file)[0]
-            if search_term.lower() in file_name.lower():
-                matched_files.append(os.path.join(root, file))
-    return matched_files
 
-def add_song_to_plex(plex_server, playlist_name, song_path):
-    playlist = plex_server.playlist(playlist_name)
-    if playlist:
-        try:
-            abs_song_path = os.path.join(MUSIC_DIR, song_path)
-            media_results = plex_server.search(abs_song_path)
-            if media_results:
-                playlist.addItems([media_results[0]])
-                print(f"Song added to Plex playlist '{playlist_name}' successfully.")
-            else:
-                print(f"Error: Media not found in Plex library for '{abs_song_path}'")
-        except Exception as e:
-            logging.error(f"Error communicating with Plex server: {e}")
-    else:
-        print(f"Playlist '{playlist_name}' not found on Plex server.")
-
-from typing import List
-from plexapi.playlist import Playlist
-from plexapi.exceptions import NotFound
-
-def _update_plex_playlist(
-    plex: PlexServer,
-    available_tracks: List,
-    playlist: Playlist,
-) -> None:
-    """Update existing Plex playlist with new tracks.
+def _update_plex_playlist(plex: PlexServer, available_tracks: List, playlist_name: str) -> None:
+    """Update existing Plex playlist by adding new tracks, with user confirmation.
 
     Args:
         plex (PlexServer): A configured PlexServer instance
         available_tracks (List): List of Plex track objects to add to the playlist
-        playlist (Playlist): Playlist object to update
+        playlist_name (str): The name of the playlist to update
     """
     try:
-        plex_playlist = plex.playlist(playlist.title)
-        plex_playlist.removeItems(plex_playlist.items())
-        plex_playlist.addItems(available_tracks)
-        logging.info("Updated playlist %s", playlist.title)
+        plex_playlist = plex.playlist(playlist_name)
+        current_track_ids = {item.ratingKey for item in plex_playlist.items()}
+        tracks_to_add = []
+
+        for track in available_tracks:
+            user_confirm = UserInputs.input(f"Add '{track.title}' by '{track.artist}' to playlist '{playlist_name}'? (y/N): ")
+            if user_confirm.lower() == 'y' and track.ratingKey not in current_track_ids:
+                tracks_to_add.append(track)
+
+        if tracks_to_add:
+            plex_playlist.addItems(tracks_to_add)
+            logging.info(f"Added {len(tracks_to_add)} new tracks to playlist {playlist_name}.")
+        else:
+            logging.info(f"No new tracks were added to playlist {playlist_name}.")
+
     except NotFound:
-        logging.warning("Playlist %s not found, skipping update", playlist.title)
-
-# Modify the calling function accordingly
-def update_plex_playlist_tracks(
-    plex: PlexServer,
-    playlist: Playlist,
-    tracks: List[Track],
-) -> None:
-    """Update tracks on an existing Plex playlist.
-
-    Args:
-        plex (PlexServer): A configured PlexServer instance
-        playlist (Playlist): Playlist object to update
-        tracks (List[Track]): List of tracks to add to the playlist
-    """
-    available_tracks, _ = _get_available_plex_tracks(plex, tracks)
-    if available_tracks:
-        _update_plex_playlist(plex, available_tracks, playlist)
-    else:
-        logging.info(
-            "No tracks found for playlist %s on Plex, skipping update",
-            playlist.title,
-        )
+        logging.error(f"Playlist '{playlist_name}' not found. Please ensure it exists on Plex.")
 
 def main():
     config = load_config()
@@ -215,10 +144,6 @@ def main():
     plex_api = config.get("plex_api")
     plex_url = plex_api.get("base_url")
     plex_token = plex_api.get("token")
-
-    directories = config.get("directories")
-    global MUSIC_DIR
-    MUSIC_DIR = directories.get("music")
 
     try:
         plex = PlexServer(plex_url, plex_token)
@@ -232,42 +157,27 @@ def main():
     if playlist_data:
         for playlist_name, songs in playlist_data.items():
             logging.info(f"Processing playlist: {playlist_name}")
-            
-            tracks = [Track(**entry) for entry in songs]
-            available_tracks = _get_available_plex_tracks(plex, tracks)
-            
-            if available_tracks:
-                for entry in songs:
-                    artist = entry.get("artist")
-                    title = entry.get("title")
+            tracks = [Track(**{key: song[key] for key in ('title', 'artist') if key in song}) for song in songs]
 
-                    search_term = f"{artist} - {title}"
-                    matched_files = search_local_music(search_term)
+            available_tracks, missing_tracks = _get_available_plex_tracks(plex, tracks)
 
-                    if matched_files:
-                        print(f"Found {len(matched_files)} match(es) for '{artist} - {title}' in '{playlist_name}':")
-                        for idx, file_path in enumerate(matched_files, start=1):
-                            print(f"{idx}. {os.path.basename(file_path)}")
-                        
-                        choice = UserInputs.input("Enter the number of the correct file or 'n' to skip: ")
-                        if choice.isdigit() and 1 <= int(choice) <= len(matched_files):
-                            confirmation = UserInputs.input(f"Confirm adding '{matched_files[int(choice) - 1]}' to playlist '{playlist_name}' (y/N)? ")
-                            
-                            if confirmation.lower() == 'y':
-                                try:
-                                    add_song_to_plex(plex, playlist_name, matched_files[int(choice) - 1])
-                                except Exception as e:
-                                    logging.error(f"Error adding song to Plex: {e}")
-                            else:
-                                print("Skipping...")
-                        else:
-                            print("Skipped.")
-                    else:
-                        print(f"No matching files found for '{artist} - {title}' in '{playlist_name}'.")
-                    
-                _update_plex_playlist(plex, available_tracks, playlist_name)
+            # User confirmation for each track before adding to the playlist
+            tracks_to_add = []
+            for track in available_tracks:
+                print(f"Found track {track.title} by {track.artist}")
+                user_confirm = UserInputs.input(f"Add '{track.title}' by '{track.artist}' to playlist '{playlist_name}'? (y/N): ")
+                if user_confirm.lower() == 'y':
+                    tracks_to_add.append(track)
+            
+            if tracks_to_add:
+                _update_plex_playlist(plex, tracks_to_add, playlist_name)
             else:
-                logging.info(f"No tracks found on Plex for playlist: {playlist_name}")
+                logging.info(f"No new tracks were added to the playlist {playlist_name}.")
+
+            if missing_tracks:
+                print(f"Missing tracks for playlist {playlist_name}:")
+                for track in missing_tracks:
+                    print(f"{track.title} by {track.artist}")
 
 if __name__ == "__main__":
     main()
