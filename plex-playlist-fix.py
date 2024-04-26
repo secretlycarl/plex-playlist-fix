@@ -106,33 +106,39 @@ def read_csv_files(csv_directory):
     
     return playlist_data
 
+def get_playlist_by_name(plex: PlexServer, playlist_name: str):
+    playlists = plex.playlists()
+    for playlist in playlists:
+        if playlist.title == playlist_name:
+            return playlist
+    return None
 
 def _update_plex_playlist(plex: PlexServer, available_tracks: List, playlist_name: str) -> None:
-    """Update existing Plex playlist by adding new tracks, with user confirmation.
-
-    Args:
-        plex (PlexServer): A configured PlexServer instance
-        available_tracks (List): List of Plex track objects to add to the playlist
-        playlist_name (str): The name of the playlist to update
-    """
-    try:
-        plex_playlist = plex.playlist(playlist_name)
-        current_track_ids = {item.ratingKey for item in plex_playlist.items()}
-        tracks_to_add = []
-
-        for track in available_tracks:
-            user_confirm = UserInputs.input(f"Add '{track.title}' by '{track.artist}' to playlist '{playlist_name}'? (y/N): ")
-            if user_confirm.lower() == 'y' and track.ratingKey not in current_track_ids:
-                tracks_to_add.append(track)
-
-        if tracks_to_add:
-            plex_playlist.addItems(tracks_to_add)
-            logging.info(f"Added {len(tracks_to_add)} new tracks to playlist {playlist_name}.")
-        else:
-            logging.info(f"No new tracks were added to playlist {playlist_name}.")
-
-    except NotFound:
+    """Update existing Plex playlist by adding new tracks, with user confirmation."""
+    plex_playlist = get_playlist_by_name(plex, playlist_name)
+    if not plex_playlist:
         logging.error(f"Playlist '{playlist_name}' not found. Please ensure it exists on Plex.")
+        return
+
+    current_track_ids = {item.ratingKey for item in plex_playlist.items()}
+    tracks_to_add = []
+
+    for track in available_tracks:
+        if track.ratingKey not in current_track_ids:
+            user_confirm = UserInputs.input(f"Add '{track.title}' by '{track.artist}' to playlist '{playlist_name}'? (y/N): ")
+            if user_confirm.lower() == 'y':
+                tracks_to_add.append(track)
+                logging.info(f"Track {track.title} approved by user for addition.")
+            else:
+                logging.info(f"User declined to add track {track.title}.")
+        else:
+            logging.info(f"Track {track.title} by {track.artist} already in playlist.")
+
+    if tracks_to_add:
+        plex_playlist.addItems(tracks_to_add)
+        logging.info(f"Added {len(tracks_to_add)} new tracks to playlist {playlist_name}.")
+    else:
+        logging.info(f"No new tracks were added to playlist {playlist_name}.")
 
 def main():
     config = load_config()
@@ -160,17 +166,14 @@ def main():
             tracks = [Track(**{key: song[key] for key in ('title', 'artist') if key in song}) for song in songs]
 
             available_tracks, missing_tracks = _get_available_plex_tracks(plex, tracks)
+            plex_playlist = get_playlist_by_name(plex, playlist_name)
 
-            # User confirmation for each track before adding to the playlist
-            tracks_to_add = []
-            for track in available_tracks:
-                print(f"Found track {track.title} by {track.artist}")
-                user_confirm = UserInputs.input(f"Add '{track.title}' by '{track.artist}' to playlist '{playlist_name}'? (y/N): ")
-                if user_confirm.lower() == 'y':
-                    tracks_to_add.append(track)
-            
-            if tracks_to_add:
-                _update_plex_playlist(plex, tracks_to_add, playlist_name)
+            if not plex_playlist:
+                logging.error(f"Playlist '{playlist_name}' not found on Plex. Skipping...")
+                continue
+
+            if available_tracks:
+                _update_plex_playlist(plex, available_tracks, plex_playlist)
             else:
                 logging.info(f"No new tracks were added to the playlist {playlist_name}.")
 
