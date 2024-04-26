@@ -13,7 +13,7 @@ The current output looks like this:
 ```
 CSV Directory: /app/csv
 Available Plex Libraries:
-1. Music
+1. Movies
 2. Shows
 3. Music
 Enter the number of the correct library: 3
