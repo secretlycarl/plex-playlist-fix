@@ -44,32 +44,24 @@ def prompt_plex_libraries(plex: PlexServer) -> None:
         exit(0)
 
 def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> List:
-    """Search and return list of tracks available in Plex."""
     plex_tracks, missing_tracks = [], []
     for track in tracks:
         search = []
         try:
-            search = plex.search(track.title, mediatype="track", limit=5)
+            search = plex.search(f"{track.title} {track.artist}", mediatype="track", limit=5)
+            if not search:
+                search = plex.search(track.title, mediatype="track", limit=5)
         except BadRequest:
-            logging.info("Failed to search %s on Plex", track.title)
-        if not search or len(track.title.split("(")) > 1:
-            logging.info("Retrying search for %s", track.title)
-            try:
-                search += plex.search(
-                    track.title.split("(")[0], mediatype="track", limit=5
-                )
-                logging.info("Search for %s successful", track.title)
-            except BadRequest:
-                logging.info("Unable to query %s on Plex", track.title)
+            logging.info("Failed to search %s by %s on Plex", track.title, track.artist)
+            missing_tracks.append(track)
+            continue
 
         found = False
-        if search:
-            for s in search:
-                artist_similarity = SequenceMatcher(
-                    None, s.artist().title.lower(), track.artist.lower()
-                ).quick_ratio()
-
-                if artist_similarity >= 0.9:
+        for s in search:
+            artist_similarity = SequenceMatcher(None, s.artist().title.lower(), track.artist.lower()).quick_ratio()
+            if artist_similarity >= 0.9:
+                confirmation = UserInputs.input(f"Found {s.title} by {s.artist().title} for {track.title} by {track.artist}, is this correct? (y/N): ")
+                if confirmation.lower() == 'y':
                     plex_tracks.append(s)
                     found = True
                     break
@@ -78,9 +70,8 @@ def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> List:
             missing_tracks.append(track)
 
     return plex_tracks, missing_tracks
-
+    
 def read_csv_files(csv_directory):
-    """Read CSV files from specified directory."""
     playlist_data = {}
     
     if not os.path.exists(csv_directory):
@@ -99,77 +90,65 @@ def read_csv_files(csv_directory):
     
     return playlist_data
 
-def get_playlist_by_name(plex: PlexServer, playlist_name: str):
-    playlists = plex.playlists()
-    for playlist in playlists:
-        if playlist.title == playlist_name:
-            return playlist
-    return None
 
-def _update_plex_playlist(plex: PlexServer, available_tracks: List, playlist_name: str) -> None:
-    """Update existing Plex playlist by adding new tracks, with user confirmation."""
+def fetch_playlist(plex, playlist_name, playlist_type='audio'):
     try:
-        plex_playlist = plex.playlist(playlist_name)
-        logging.info(f"Playlist {playlist_name} found.")
+        playlists = plex.playlists()
+        for playlist in playlists:
+            if playlist.title == playlist_name and playlist.playlistType == playlist_type:
+                return playlist
+        return None
     except NotFound:
-        logging.error(f"Playlist {playlist_name} not found. No updates made.")
+        logging.info(f"Playlist {playlist_name} not found.")
+        return None
+
+def add_tracks_to_playlist(plex, playlist, tracks):
+    if not tracks:
+        logging.info("No tracks to add.")
+        return
+    uris = [track.uri for track in tracks if track.uri]
+    for uri in uris:
+        try:
+            playlist.addItems([uri], playQueueID=playlist.playQueueID)
+            logging.info(f"Successfully added track with URI {uri} to playlist.")
+        except Exception as e:
+            logging.error(f"Failed to add track with URI {uri} to playlist: {e}")
+
+def confirm_and_add_tracks(plex, playlist_name, missing_tracks):
+    playlist = fetch_playlist(plex, playlist_name)
+    if not playlist:
+        logging.error(f"Playlist {playlist_name} does not exist and will not be created.")
         return
 
-    current_track_ids = {item.ratingKey for item in plex_playlist.items()}
-    logging.info(f"Current track IDs in playlist: {current_track_ids}")
     tracks_to_add = []
-
-    for track in available_tracks:
-        if track.ratingKey not in current_track_ids:
-            logging.info(f"Track {track.title} by {track.artist} is not in the playlist, prompting for addition.")
-            user_confirm = input(f"Add '{track.title}' by '{track.artist}' to playlist '{playlist_name}'? (y/N): ")
-            if user_confirm.lower() == 'y':
-                tracks_to_add.append(track)
-                logging.info(f"Track {track.title} approved by user for addition.")
-            else:
-                logging.info(f"User declined to add track {track.title}.")
-        else:
-            logging.info(f"Track {track.title} by {track.artist} already in playlist.")
+    for track in missing_tracks:
+        confirmation = UserInputs.input(f"Add track {track.title} by {track.artist} to playlist (y/N)? ")
+        if confirmation.lower() == 'y':
+            tracks_to_add.append(track)
 
     if tracks_to_add:
-        plex_playlist.addItems(tracks_to_add)
-        logging.info(f"Added {len(tracks_to_add)} new tracks to playlist {playlist_name}.")
+        add_tracks_to_playlist(plex, playlist, tracks_to_add)
+        logging.info(f"Added {len(tracks_to_add)} tracks to the playlist {playlist_name}.")
     else:
-        logging.info(f"No new tracks were added to playlist {playlist_name}.")
+        logging.info("No new tracks were added.")
 
 def main():
     config = load_config()
     csv_directory = config.get("directories", {}).get("csv")
-    print(f"CSV Directory: {csv_directory}")
-
     plex_api = config.get("plex_api")
     plex_url = plex_api.get("base_url")
     plex_token = plex_api.get("token")
 
-    try:
-        plex = PlexServer(plex_url, plex_token)
-        prompt_plex_libraries(plex)
-    except Exception as e:
-        logging.error(f"Error connecting to Plex server: {e}")
-        return
-
+    plex = PlexServer(plex_url, plex_token)
+    prompt_plex_libraries(plex)  # Ensure this is called to select the library
     playlist_data = read_csv_files(csv_directory)
 
     if playlist_data:
         for playlist_name, songs in playlist_data.items():
             logging.info(f"Processing playlist: {playlist_name}")
             tracks = [Track(title=song['title'], artist=song['artist']) for song in songs]
-
             available_tracks, missing_tracks = _get_available_plex_tracks(plex, tracks)
-            if available_tracks:
-                _update_plex_playlist(plex, available_tracks, playlist_name, append=True)  # Set append based on your needs
-            else:
-                logging.info(f"No new tracks were added to the playlist {playlist_name}.")
-
-            if missing_tracks:
-                print(f"Missing tracks for playlist {playlist_name}:")
-                for track in missing_tracks:
-                    print(f"{track.title} by {track.artist}")
+            confirm_and_add_tracks(plex, playlist_name, missing_tracks)
 
 if __name__ == "__main__":
     main()
