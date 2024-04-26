@@ -31,12 +31,12 @@ PS C:\Users\user\Documents\plex-playlist-fix>
 
 # Usage
 
-Set up the config file with your information
+Set up the config file with your Plex info
 
-Set up the run command to mount your folders with CSVs and mp3s
+Set up the run command to mount the folder with CSVs from plex-playlist-sync
 
 Build the docker image
 
 Run the docker run command
 
-The script will read the CSVs and look for the songs in your mp3 library, ask to confirm the match, and then add it to the appropriate plex playlist
+I combined the build & run commands in the file but they can be split
