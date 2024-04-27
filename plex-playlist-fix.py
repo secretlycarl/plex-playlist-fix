@@ -24,7 +24,7 @@ def load_config():
         print(f"Error loading config.json: {e}")
         exit(1)
 
-def prompt_plex_libraries(plex: PlexServer) -> None:
+def prompt_plex_libraries(plex: PlexServer) -> PlexServer:
     """Prompt user to select Plex library before proceeding."""
     libraries = plex.library.sections()
     print("Available Plex Libraries:")
@@ -39,13 +39,19 @@ def prompt_plex_libraries(plex: PlexServer) -> None:
         if confirmation.lower() != 'y':
             print("Aborting...")
             exit(0)
+        else:
+            return library
     else:
         print("Invalid choice. Aborting...")
         exit(0)
 
-def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> List:
+def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track], playlist_name: str) -> List:
     plex_tracks, missing_tracks = [], []
+    current_playlist_songs = get_current_playlist_songs(plex, playlist_name)
     for track in tracks:
+        track_string = f"{track.artist} - {track.title}"
+        if track_string in current_playlist_songs:
+            continue
         search = []
         try:
             search = plex.search(f"{track.title} {track.artist}", mediatype="track", limit=5)
@@ -60,11 +66,10 @@ def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> List:
         for s in search:
             artist_similarity = SequenceMatcher(None, s.artist().title.lower(), track.artist.lower()).quick_ratio()
             if artist_similarity >= 0.9:
-                confirmation = UserInputs.input(f"Found {s.title} by {s.artist().title} for {track.title} by {track.artist}, is this correct? (y/N): ")
-                if confirmation.lower() == 'y':
-                    plex_tracks.append(s)
-                    found = True
-                    break
+                track.s_key = s.key  # Set the s_key attribute of the Track object
+                plex_tracks.append(track)  # Store the Track object with the s_key set
+                found = True
+                break
 
         if not found:
             missing_tracks.append(track)
@@ -102,17 +107,29 @@ def fetch_playlist(plex, playlist_name, playlist_type='audio'):
         logging.info(f"Playlist {playlist_name} not found.")
         return None
 
-def add_tracks_to_playlist(plex, playlist, tracks):
+def get_current_playlist_songs(plex, playlist_name):
+    playlist = fetch_playlist(plex, playlist_name)
+    if not playlist:
+        logging.error(f"Playlist {playlist_name} does not exist.")
+        return []
+    return [f"{item.artist().title} - {item.title}" for item in playlist.items()]
+
+def add_tracks_to_playlist(plex, playlist_name, tracks):
+    playlist = fetch_playlist(plex, playlist_name)
+    if not playlist:
+        logging.error(f"Playlist {playlist_name} does not exist.")
+        return
+
     if not tracks:
         logging.info("No tracks to add.")
         return
-    uris = [track.uri for track in tracks if track.uri]
-    for uri in uris:
-        try:
-            playlist.addItems([uri], playQueueID=playlist.playQueueID)
-            logging.info(f"Successfully added track with URI {uri} to playlist.")
-        except Exception as e:
-            logging.error(f"Failed to add track with URI {uri} to playlist: {e}")
+
+    s_keys = [track.s_key for track in tracks if hasattr(track, 's_key')]
+    try:
+        playlist.addItems(s_keys)
+        logging.info(f"Successfully added {len(s_keys)} tracks to playlist.")
+    except Exception as e:
+        logging.error(f"Failed to add tracks to playlist: {e}")
 
 def confirm_and_add_tracks(plex, playlist_name, missing_tracks):
     playlist = fetch_playlist(plex, playlist_name)
@@ -122,15 +139,16 @@ def confirm_and_add_tracks(plex, playlist_name, missing_tracks):
 
     tracks_to_add = []
     for track in missing_tracks:
-        confirmation = UserInputs.input(f"Add track {track.title} by {track.artist} to playlist (y/N)? ")
-        if confirmation.lower() == 'y':
-            tracks_to_add.append(track)
+        print(f"Found track {track.title} by {track.artist} in library.")
+        tracks_to_add.append(track)
 
     if tracks_to_add:
-        add_tracks_to_playlist(plex, playlist, tracks_to_add)
-        logging.info(f"Added {len(tracks_to_add)} tracks to the playlist {playlist_name}.")
-    else:
-        logging.info("No new tracks were added.")
+        confirmation = UserInputs.input(f"Add all {len(tracks_to_add)} tracks to playlist (y/N)? ")
+        if confirmation.lower() == 'y':
+            add_tracks_to_playlist(plex, playlist, tracks_to_add)
+            logging.info(f"Added {len(tracks_to_add)} tracks to the playlist {playlist_name}.")
+        else:
+            logging.info("No new tracks were added.")
 
 def main():
     config = load_config()
@@ -140,14 +158,14 @@ def main():
     plex_token = plex_api.get("token")
 
     plex = PlexServer(plex_url, plex_token)
-    prompt_plex_libraries(plex)  # Ensure this is called to select the library
+    selected_library = prompt_plex_libraries(plex)
     playlist_data = read_csv_files(csv_directory)
 
     if playlist_data:
         for playlist_name, songs in playlist_data.items():
             logging.info(f"Processing playlist: {playlist_name}")
             tracks = [Track(title=song['title'], artist=song['artist']) for song in songs]
-            available_tracks, missing_tracks = _get_available_plex_tracks(plex, tracks)
+            available_tracks, missing_tracks = _get_available_plex_tracks(plex, tracks, playlist_name)
             confirm_and_add_tracks(plex, playlist_name, missing_tracks)
 
 if __name__ == "__main__":
