@@ -1,7 +1,7 @@
 # plex-playlist-fix
 companion for [plex-playlist-sync](https://github.com/rnagabhyrava/plex-playlist-sync) that adds missing songs to Plex playlists
 
-[Plex API Docs](https://plexapi.dev/docs/plex/library)
+[Plex API Docs](https://github.com/pkkid/python-plexapi)
 
 CURRENTLY A WORK IN PROGRESS, NOT YET WORKING COMPLETELY
 
