@@ -12,8 +12,8 @@ It is almost complete but I'm struggling to configure the Plex stuff so it adds 
 Need to fix the final few steps (adding to a playlist, then going on to scan the next CSV)
 
 The current output looks like this:
+
 ```
-CSV Directory: /app/csv
 Available Plex Libraries:
 1. Movies
 2. Shows
@@ -22,15 +22,13 @@ Enter the number of the correct library: 3
 You selected library: Music
 Continue with this library (y/N)? y
 INFO:root:Processing playlist: test1
-Found [song x] for [song x], is this correct? (y/N): y
-Found [song y] for [song y], is this correct? (y/N): y
-INFO:root:Failed to search [song z] on Plex
-Add track You Can't Run by ev.exi to playlist (y/N)? y
-Add track Cheeks by Sam Greenfield to playlist (y/N)? y
+Found track [A] in library.
 ...
-Add track Club Fragil by Dog Orchestra to playlist (y/N)? y
+Found track [Z] in library.
+Add all 98 tracks to playlist (y/N)? y
+ERROR:root:Playlist <Playlist:91595:test1> does not exist.
 INFO:root:Added 98 tracks to the playlist test1.
-PS C:\Users\wmwal\Documents\plex-playlist-fix>
+PS C:\Users\user\Documents\plex-playlist-fix>
 ```
 
 # Usage
