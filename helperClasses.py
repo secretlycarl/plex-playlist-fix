@@ -2,9 +2,9 @@ from dataclasses import dataclass
 
 @dataclass
 class Track:
-  """Holds information about a music track."""
-  title: str
-  artist: str
+    """Holds information about a music track."""
+    title: str
+    artist: str
 
 @dataclass
 class Playlist:
