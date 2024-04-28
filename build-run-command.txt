@@ -1,1 +1,1 @@
-docker build -t plex-playlist-fix . ; docker run -it -v C:/Users/path/to/CSVfolder :/app/csv --name playlist_fix plex-playlist-fix
+docker build -t plex-playlist-fix . ; docker run -it -v C:/Users/path/to/CSVfolder:/app/csv --name playlist_fix plex-playlist-fix
