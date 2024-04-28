@@ -1,12 +1,6 @@
 from dataclasses import dataclass
 
 @dataclass
-class Track:
-    """Holds information about a music track."""
-    title: str
-    artist: str
-
-@dataclass
 class Playlist:
   """Holds information about a Plex playlist."""
   id: str
@@ -22,3 +16,4 @@ class UserInputs:
   def input(message):
     """Prompts the user for input with the given message."""
     return input(message)
+      
