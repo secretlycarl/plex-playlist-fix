@@ -51,7 +51,7 @@ INFO:root:Searching for artist: Brooke Candy
 INFO:root:Found track: Brooke Candy - Oomph
 Add 3 tracks to playlist (y/N)? y
 INFO:root:Successfully added 3 tracks to playlist.
-INFO:root:Added 3 tracks to the playlist Your Top Songs 2023 - Spotify.
+INFO:root:Added 3 tracks to the playlist Your Top Songs 2022 - Spotify.
 All CSVs processed.
 ```
 
