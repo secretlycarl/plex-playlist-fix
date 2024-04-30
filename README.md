@@ -7,7 +7,7 @@ This script is meant to be used in conjunction with plex-playlist-sync in Docker
 
 Set up the config file with your Plex info
 
-Set up the run command to mount the folder with CSVs from plex-playlist-sync. Be sure to use the correct shlashes for the path.
+Set up the run command to mount the folder with CSVs from plex-playlist-sync. Be sure to use the correct slashes for the path.
 
 Build the docker image
 
