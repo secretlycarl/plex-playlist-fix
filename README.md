@@ -62,4 +62,4 @@ One or two tracks somtimes fall through the cracks and are not added to the play
 
 Implement Spotify API connection to check order of playlists and update order of playlists on Plex once songs are added.
 
-Need to implement album matching because some added tracks are incorrect (from a live album vetc).
+Need to implement album matching because some added tracks are incorrect (from a live album etc).
